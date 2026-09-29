@@ -7,6 +7,11 @@ dependencies = [
     "pyside6",
     "pyyaml",
     "psutil",
+    "huggingface_hub",
+    "pyarrow",
+    "soundfile",
+    "soxr",
+    "numpy",
 ]
 
 [dependency-groups]

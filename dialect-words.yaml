@@ -1,0 +1,37 @@
+# Words that mark Iraqi Arabic, and their formal (Modern Standard Arabic)
+# counterparts. The dialect score counts both in each output going into Iraqi
+# Arabic, and reports the share of outputs that lean Iraqi. Written after the
+# bench's cleaning (no diacritics; ة as ه; ى as ي), so they match cleaned text.
+# Extend freely: more words make the score steadier. Leave out words both
+# forms share (اريد, "I want"): they don't lean either way.
+
+iraqi:
+  - هسه        # now
+  - شنو        # what
+  - شكو        # what's up / what is there
+  - كلش        # very
+  - هواي       # a lot
+  - اكو        # there is
+  - ماكو       # there isn't
+  - ليش        # why
+  - وين        # where
+  - شلون       # how
+  - يمعود      # hey man
+  - زين        # good
+  - جا         # so / then
+  - دا         # (progressive particle)
+  - چا         # so
+  - گاعد       # sitting / (progressive)
+
+formal:
+  - الان       # now
+  - ماذا       # what
+  - جدا        # very
+  - كثيرا      # a lot
+  - يوجد       # there is
+  - لا يوجد    # there isn't
+  - لماذا      # why
+  - اين        # where
+  - كيف        # how
+  - حسنا       # good / okay
+  - اذن        # so

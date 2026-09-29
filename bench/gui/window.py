@@ -11,10 +11,12 @@ import time
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QMainWindow, QMessageBox,
-                               QPlainTextEdit, QPushButton, QTabWidget, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QApplication, QHBoxLayout, QHeaderView, QLabel, QMainWindow,
+                               QMessageBox, QPlainTextEdit, QPushButton, QTableWidget,
+                               QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
-from bench import db, session
+from bench import db, round_view, rounds, session
+from bench.config import ROOT
 
 REFRESH_MS = 500
 
@@ -61,6 +63,7 @@ class Window(QMainWindow):
         self.log_view.setReadOnly(True)
         self.log_view.setFont(QFont("Consolas", 10))
         self.tabs = QTabWidget()
+        self.tabs.addTab(self.build_round_tab(), "Round")
         self.tabs.addTab(self.log_view, "Log")
 
         layout = QVBoxLayout()
@@ -76,6 +79,87 @@ class Window(QMainWindow):
         self.timer.timeout.connect(self.refresh)
         self.timer.start(REFRESH_MS)
         self.refresh()
+
+    # --- The Round tab ---------------------------------------------------------------
+
+    def build_round_tab(self) -> QWidget:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        buttons = QHBoxLayout()
+        for label, name in (("Open candidates.yaml", "candidates.yaml"), ("Open prompts folder", "prompts"),
+                            ("Open settings.yaml", "settings.yaml")):
+            b = QPushButton(label)
+            b.clicked.connect(lambda _=False, n=name: os.startfile(ROOT / n))
+            buttons.addWidget(b)
+        reload_button = QPushButton("Reload")
+        reload_button.clicked.connect(self.refresh_round)
+        new_button = QPushButton("New round")
+        new_button.clicked.connect(self.new_round)
+        buttons.addStretch(1)
+        buttons.addWidget(reload_button)
+        buttons.addWidget(new_button)
+        layout.addLayout(buttons)
+        self.round_problems = QLabel()
+        self.round_problems.setWordWrap(True)
+        layout.addWidget(self.round_problems)
+        self.asr_table = self.make_table(["ASR", "source", "languages", "baseline", "why", "risks"])
+        self.translator_table = self.make_table(["translator", "source", "baseline", "why"])
+        self.excluded_table = self.make_table(["left out", "why"])
+        self.prompt_table = self.make_table(["prompt", "what it changes", "why"])
+        for title, table in (("Speech recognizers", self.asr_table), ("Translators", self.translator_table),
+                             ("Prompts", self.prompt_table), ("Considered and left out", self.excluded_table)):
+            layout.addWidget(QLabel(f"<b>{title}</b>"))
+            layout.addWidget(table)
+        layout.addWidget(QLabel("<b>What New round would record</b>"))
+        self.pending_view = QPlainTextEdit()
+        self.pending_view.setReadOnly(True)
+        layout.addWidget(self.pending_view)
+        self.refresh_round()
+        return tab
+
+    @staticmethod
+    def make_table(headers: list) -> QTableWidget:
+        table = QTableWidget(0, len(headers))
+        table.setHorizontalHeaderLabels(headers)
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        table.horizontalHeader().setStretchLastSection(True)
+        table.setEditTriggers(QTableWidget.NoEditTriggers)
+        table.verticalHeader().setVisible(False)
+        return table
+
+    @staticmethod
+    def fill(table: QTableWidget, rows: list, keys: list) -> None:
+        table.setRowCount(len(rows))
+        for r, row in enumerate(rows):
+            for c, key in enumerate(keys):
+                table.setItem(r, c, QTableWidgetItem(str(row.get(key, ""))))
+        table.resizeRowsToContents()
+        height = table.horizontalHeader().height() + 4
+        height += sum(table.rowHeight(r) for r in range(table.rowCount())) or table.verticalHeader().defaultSectionSize()
+        table.setFixedHeight(height)
+
+    def refresh_round(self):
+        v = round_view.build()
+        self.round_label.setText(f"Round {v.number}" if v.number else "Round —")
+        if v.problems:
+            self.round_problems.setText("<span style='color:#c0392b'><b>Problems:</b><br>"
+                                        + "<br>".join(v.problems) + "</span>")
+        else:
+            self.round_problems.setText("<span style='color:#2e8b57'>The files are sound.</span>")
+        self.fill(self.asr_table, v.asr, ["id", "source", "languages", "baseline", "why", "risks"])
+        self.fill(self.translator_table, v.translators, ["id", "source", "baseline", "why"])
+        self.fill(self.prompt_table, v.prompts, ["name", "changes", "why"])
+        self.fill(self.excluded_table, v.excluded or [{"id": "(none)", "why": ""}], ["id", "why"])
+        self.pending_view.setPlainText(v.pending)
+
+    def new_round(self):
+        answer = QMessageBox.question(self, "New round",
+                                      "Snapshot candidates.yaml, prompts/ and settings.yaml as a new round, "
+                                      "and draft its changelog?")
+        if answer == QMessageBox.Yes:
+            n = rounds.new_round()
+            os.startfile(rounds.folder(n) / "changelog.md")
+            self.refresh_round()
 
     # --- Drawing ------------------------------------------------------------------
 

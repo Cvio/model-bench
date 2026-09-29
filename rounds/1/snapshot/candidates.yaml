@@ -1,0 +1,44 @@
+# The models this round tests. You choose them (with Claude, in chat); the bench
+# never searches for or picks models, and never changes this file.
+#
+# Each entry:
+#   id:          a short name, used everywhere results are shown
+#   source:      where it is:
+#                  volis:<path under volis's folder>   a model volis already has
+#                  hf:<owner>/<name>@<commit>          on Hugging Face; always pin the commit
+#   origin:      for a volis: model, the Hugging Face model it came from, pinned,
+#                so its model card can be checked for test-data contamination
+#   languages:   which languages it's tested on (ar, ar-IQ, fa, en)
+#   baseline:    true for what volis runs today (each role needs one)
+#   why:         why it's in the test
+#   risks:       anything that could make its score misleading (optional)
+#   added_in_round, requested_by: optional, for the history
+
+asr:
+  - id: whisper-turbo-volis
+    source: volis:models/asr/whisper-large-v3-turbo
+    origin: hf:openai/whisper-large-v3-turbo@41f01f3fe87f28c78e2fbf8b568835947dd65ed9
+    languages: [ar, ar-IQ, fa]
+    baseline: true
+    why: What volis runs today for speech in Arabic and Persian (volis's Whisper).
+    added_in_round: 1
+
+  - id: parakeet-volis
+    source: volis:models/asr/parakeet-tdt-0.6b-v3-int8
+    origin: hf:nvidia/parakeet-tdt-0.6b-v3@541d1f99c6b0c3cd0b11a95167540bb8edefd82b
+    languages: [en]
+    baseline: true
+    why: What volis runs today for English speech (English -> Persian / Iraqi).
+    added_in_round: 1
+
+translators:
+  - id: qwen3-1.7b-volis
+    source: volis:models/mt/qwen3-1.7b-q4_k_m.gguf
+    origin: hf:Qwen/Qwen3-1.7B@70d244cc86ccca08cf5af4e1e306ecf908b1ad5e
+    baseline: true
+    why: What volis runs today.
+    added_in_round: 1
+
+# Considered and left out, with the reason. This goes into the report: "did
+# you try X?" is often answered by "yes, and here's why it isn't in".
+excluded: []

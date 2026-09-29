@@ -1,0 +1,38 @@
+# Limits, sizes, budgets and thresholds. Changing one starts a new round's
+# changelog entry; results that don't depend on it are reused.
+
+splits:
+  seed: 20260929            # fixed forever: every sentence keeps its split
+  development: 0.40         # the prompt lab may use it freely
+  selection: 0.30           # ranking and picking finalists
+  vault: 0.30               # final runs only, at most vault_max_configs per slot
+vault_max_configs: 3
+
+matching:
+  min_english_similarity: 0.85   # a FLEURS clip matches a FLORES+ sentence only above this
+  min_own_language_similarity: 0.5   # and its Persian/Arabic transcript must resemble FLORES+'s own text
+
+laptop:
+  max_translation_seconds_p90: 3.0   # for a 15-word sentence; slower is "too slow for conversation"
+
+prompt_lab:
+  top_translators_per_direction: 3
+  max_cycles: 8
+  stop_after_no_gain: 3
+  max_added_latency_ms: 150
+
+statistics:
+  bootstrap_redraws: 10000
+  confidence: 0.95
+
+judge:
+  min_critical_agreement: 0.80   # below this, judged categories are "unconfirmed"
+
+review:
+  outputs_per_config: 30
+  asr_clips_per_config: 10
+
+real_iraqi_min_clips: 50         # from this many, real clips replace the proxy as the main Iraqi test
+
+disk:
+  min_free_gb: 20                # pause before a download that would leave less

@@ -7,6 +7,10 @@
     bench status              counts, what's running, the last log lines
     bench retry-failed        put failed jobs back in the queue
     bench add-dummy N SECONDS [--fail]   queue N dummy jobs (for testing the queue)
+    bench validate            check candidates.yaml, prompts/ and settings.yaml
+    bench prepare             queue the test data and contamination jobs
+    bench new-round           snapshot the files as a new round, and draft its changelog
+    bench data                counts per test set and split
 """
 
 import argparse
@@ -75,6 +79,47 @@ def cmd_add_dummy(a) -> int:
     return 0
 
 
+def cmd_validate(a) -> int:
+    from bench import config
+
+    problems = config.validate(online=True)
+    for p in problems:
+        print(f"  - {p}")
+    print("OK: candidates.yaml, prompts/ and settings.yaml are sound." if not problems
+          else f"STOP: {len(problems)} problem(s) above.")
+    return 1 if problems else 0
+
+
+def cmd_prepare(a) -> int:
+    from bench import config, contamination, data
+
+    problems = config.validate(online=False)
+    if problems:
+        print("STOP: fix these first (bench validate):")
+        for p in problems:
+            print(f"  - {p}")
+        return 1
+    conn = db.connect()
+    n = data.queue(conn) + contamination.queue(conn, config.candidates())
+    print(f"Queued {n} new job(s); jobs already done are reused. Start the queue to run them.")
+    return 0
+
+
+def cmd_new_round(a) -> int:
+    from bench import rounds
+
+    n = rounds.new_round()
+    print(f"Round {n} started: {rounds.folder(n)}. Edit its changelog.md: say why each change was made.")
+    return 0
+
+
+def cmd_data(a) -> int:
+    from bench import report_data
+
+    print(report_data.summary(db.connect()))
+    return 0
+
+
 def open_window() -> int:
     from bench.gui.window import main as window_main
 
@@ -91,6 +136,10 @@ def main(argv=None) -> int:
     sub.add_parser("stop").set_defaults(func=cmd_stop)
     sub.add_parser("status").set_defaults(func=cmd_status)
     sub.add_parser("retry-failed").set_defaults(func=cmd_retry)
+    sub.add_parser("validate").set_defaults(func=cmd_validate)
+    sub.add_parser("prepare").set_defaults(func=cmd_prepare)
+    sub.add_parser("new-round").set_defaults(func=cmd_new_round)
+    sub.add_parser("data").set_defaults(func=cmd_data)
     p = sub.add_parser("add-dummy")
     p.add_argument("n", type=int)
     p.add_argument("seconds", type=float)

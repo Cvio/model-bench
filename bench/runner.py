@@ -68,6 +68,11 @@ def run_job(conn, job) -> str:
             return "stopped"
         time.sleep(POLL)
     stderr = process.stderr.read().strip()
+    if process.returncode == 5:   # bench.worker.DISK_LOW
+        db.release(conn, job["id"])
+        db.set_flag(conn, "pause")
+        db.log(conn, f"paused: {stderr.splitlines()[-1] if stderr else 'the disk is nearly full'}", "error")
+        return "pending"
     status = conn.execute("SELECT status FROM jobs WHERE id=?", (job["id"],)).fetchone()["status"]
     if process.returncode == 0 and status == "done":
         db.log(conn, f"finished job {job['id']}")

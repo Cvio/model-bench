@@ -1,0 +1,7 @@
+# The prompt volis sends today. Never retyped here: the text is taken from
+# `volis --print-prompt <source> <target>` for every language pair, so it
+# always matches volis exactly.
+name: volis-current
+from_volis: true
+changes: Nothing; this is the baseline.
+why: It's what volis does today.

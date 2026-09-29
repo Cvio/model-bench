@@ -14,6 +14,8 @@ import traceback
 from bench import db
 from bench.jobs import KINDS
 
+DISK_LOW = 5
+
 
 def main() -> int:
     job_id = int(sys.argv[1])
@@ -28,7 +30,11 @@ def main() -> int:
         return 4
     try:
         result = work(json.loads(job["payload"]))
-    except Exception:  # noqa: BLE001 - any failure of the job's own work
+    except Exception as e:  # noqa: BLE001 - any failure of the job's own work
+        if type(e).__name__ == "DiskLow":
+            # Not the job's fault: the runner pauses the queue with this message.
+            print(f"DISK LOW: {e}", file=sys.stderr)
+            return DISK_LOW
         traceback.print_exc()
         return 1
     db.finish(conn, job_id, result or {})

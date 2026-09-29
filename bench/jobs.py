@@ -21,4 +21,26 @@ def dummy(payload: dict) -> dict:
     return {"slept": seconds}
 
 
-KINDS = {"dummy": dummy}
+def _data(name):
+    def run(payload):
+        from bench import data
+
+        return getattr(data, name)(payload)
+    return run
+
+
+def _contamination(payload):
+    from bench import contamination
+
+    return contamination.check(payload)
+
+
+KINDS = {
+    "dummy": dummy,
+    "prepare_flores": _data("prepare_flores"),
+    "prepare_fleurs": _data("prepare_fleurs"),
+    "prepare_youssef": _data("prepare_youssef"),
+    "prepare_user": _data("prepare_user"),
+    "match_and_split": _data("match_and_split"),
+    "contamination": _contamination,
+}

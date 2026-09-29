@@ -5,7 +5,8 @@ prompt together, end to end, for Iraqi Arabic and Persian (Farsi). It produces a
 that holds up when a colleague asks "is that difference real?".
 
 The full plan is in [model-bench.md](model-bench.md). It's being built milestone by milestone;
-**B1, the job queue and the window's frame, is done.** The testing itself comes in later milestones.
+**B1 (the job queue and window) and B2 (candidates, rounds and test data) are done.** Running the
+models comes in the next milestones.
 
 ## Words used here
 
@@ -14,6 +15,16 @@ The full plan is in [model-bench.md](model-bench.md). It's being built milestone
   of jobs (the **queue**) and works through it one at a time.
 - **Runner:** the background process that works through the queue. Only one runs at a time.
 - **PowerShell:** the Windows program where you type commands (Start menu, type `PowerShell`).
+- **Candidate:** a model being tested. `candidates.yaml` lists them; it starts with only what volis
+  runs today (the **baseline**), and you add the rest.
+- **Round:** one pass of testing. Each round keeps a copy of the files as they were and a
+  **changelog** saying what changed and why, so "did you try X?" can be answered later.
+- **FLEURS and FLORES+:** public test data. FLORES+ is the same 2,009 sentences professionally
+  translated into 200+ languages; FLEURS is people reading those sentences aloud. Together they
+  give real speech with real reference translations.
+- **Split:** each sentence is put, once and for good, in one of three piles: **development**
+  (for trying things), **selection** (for ranking) and **vault** (kept back for the final
+  recommendation, so the final numbers aren't ones the choices were tuned on).
 
 ## Set up (once per computer)
 
@@ -37,6 +48,53 @@ The full plan is in [model-bench.md](model-bench.md). It's being built milestone
 3. **Tell it about this computer.** Copy `machine.example.yaml` to `machine.yaml` and open it in
    Notepad. Set `volis_path` to the folder with `volis.exe` in it, and `converter_path` to the
    model-converter folder. Each setting in the file says what it's for.
+
+## Choose what to test
+
+1. **Candidates:** open `candidates.yaml` in Notepad (or the window's **Round** tab, **Open
+   candidates.yaml**). Each model has an `id`, a `source` (a model volis already has, or one on
+   Hugging Face pinned to an exact version), the languages to test it on, and **why** it's in.
+   Models you considered and left out go under `excluded`, with the reason: the report shows them.
+2. **Prompts:** each file in `prompts\` is one way of instructing the translator. `volis-current`
+   is volis's own, taken from volis itself.
+3. **Check them:**
+
+   ```powershell
+   .\bench.ps1 validate
+   ```
+
+   **Expect** `OK: candidates.yaml, prompts/ and settings.yaml are sound.` Otherwise it lists every
+   problem in plain words (a typo in a source, a model that isn't pinned, a missing reason).
+4. **Start a round** when the list changes: **New round** in the Round tab, or
+   `.\bench.ps1 new-round`. It saves a copy of the files and drafts `rounds\<n>\changelog.md` from
+   what changed. Open it and write why, in your words, and who asked if a colleague did.
+
+## Get the test data (once)
+
+```powershell
+.\bench.ps1 prepare
+.\bench.ps1 start --no-window
+```
+
+The first command lists the jobs (downloading FLEURS and FLORES+, the Iraqi test recordings, and
+checking each candidate's model card); the second runs them. It downloads about 3 GB and takes a
+while. FLORES+ is only shared with logged-in users who accepted its terms: if it stops saying so,
+accept them at <https://huggingface.co/datasets/openlanguagedata/flores_plus> and run
+`uv run hf auth login`. Then see what you have:
+
+```powershell
+.\bench.ps1 data
+```
+
+**Expect** a table of recordings per test set and split, how many FLEURS recordings were matched
+to their FLORES+ sentence (each match is checked by its English and its own language; any that
+don't match are left out), and for each candidate whether its model card says it trained on a
+test set. "No mention" means the card doesn't say; it doesn't prove the model never saw the data.
+
+**Your own recordings,** when you have them, go in `testsets\iraqi-user\` (Iraqi speakers) or
+`testsets\volis-recorded\` (recorded through volis): a `speech.csv` with the columns `clip`,
+`speaker`, `iraqi_text` and `english_text`, and the recordings in a `clips\` folder. Run
+`.\bench.ps1 prepare` again to add them.
 
 ## Use it
 
