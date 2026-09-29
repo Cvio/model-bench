@@ -1,0 +1,11 @@
+# The queue and every result; downloads and converted models. Reproducible.
+/state/
+/cache/
+# Voices: the user's own recordings are never committed.
+/testsets/
+# This machine's paths and keys.
+/machine.yaml
+# uv's cache, Python and the environment, kept inside the folder.
+/.venv/
+/.uv/
+__pycache__/

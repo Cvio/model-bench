@@ -1,0 +1,21 @@
+# What differs between computers. Copy this to machine.yaml (not committed)
+# and edit it.
+
+# The volis folder whose volis.exe and models are the baseline, and whose
+# engines the bench must match (the parity check). Its target/release folder.
+volis_path: D:/AI_Data/projects/volis/target/release
+
+# The model-converter folder, for converting candidates that aren't ONNX yet.
+converter_path: D:/AI_Data/projects/model-converter
+
+# The laptop volis runs on: its memory, and how much slower its CPU is than
+# this machine's (1.0 = the same). Used to judge "fits the laptop" and
+# "fast enough for a conversation" when measuring on another machine.
+laptop_ram_gb: 32
+laptop_speed_factor: 1.0
+
+# The assistant model (proposes prompt changes, and sorts errors as the judge):
+# "local" (a GGUF on this machine) or "claude" (through the API; test sentences
+# then leave this machine, and the report says so).
+assistant: local
+assistant_gguf: ""
