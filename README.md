@@ -5,8 +5,8 @@ prompt together, end to end, for Iraqi Arabic and Persian (Farsi). It produces a
 that holds up when a colleague asks "is that difference real?".
 
 The full plan is in [model-bench.md](model-bench.md). It's being built milestone by milestone;
-**B1 (the job queue and window) and B2 (candidates, rounds and test data) are done.** Running the
-models comes in the next milestones.
+**B1 (the job queue and window), B2 (candidates, rounds and test data) and B3 (the parity check)
+are done.** Scoring whole configurations comes in the next milestones.
 
 ## Words used here
 
@@ -95,6 +95,45 @@ test set. "No mention" means the card doesn't say; it doesn't prove the model ne
 `testsets\volis-recorded\` (recorded through volis): a `speech.csv` with the columns `clip`,
 `speaker`, `iraqi_text` and `english_text`, and the recordings in a `clips\` folder. Run
 `.\bench.ps1 prepare` again to add them.
+
+## Prove the bench matches volis (once per volis version)
+
+Every number the bench reports is only worth anything if it runs the models exactly the way volis
+does. So before anything else counts, the bench proves it: it runs volis's own speech recognizers
+on 20 recordings, and volis's translator on 20 sentences in three directions, both through its own
+machinery and through volis itself, and checks every result is **identical, letter for letter**.
+This is the **parity check**.
+
+**What you need first:**
+- **volis with the bench commands** (`--print-prompt`, `--translate`, `--transcribe`): the
+  `model-bench-work` branch, built. `machine.yaml`'s `volis_path` points at its `target\release`
+  folder.
+- **model-converter set up** (its `setup.ps1`), with `converter_path` in `machine.yaml`. The bench
+  borrows its speech engine, which is set up exactly like volis's.
+- **The translator's engine,** built the same way volis builds it (the same llama.cpp version and
+  the same processor settings). Once:
+
+  ```powershell
+  .\bench.ps1 build-server
+  ```
+
+  **Expect** `OK. llama-server is built` after a few minutes. It needs the Visual Studio Build
+  Tools, the same ones that build volis.
+
+**Then run the check:**
+
+```powershell
+.\bench.ps1 parity
+.\bench.ps1 start --no-window
+.\bench.ps1 parity-report
+```
+
+**Expect** `Parity with volis: PASSED`, with every line reading 20 of 20 identical. It takes a
+few minutes. If anything differs, the report shows the bench's output and volis's side by side,
+and nothing the bench measures counts until that's fixed.
+
+Run it again whenever volis or its models change: the bench notices a new volis version and asks
+for a fresh check.
 
 ## Use it
 

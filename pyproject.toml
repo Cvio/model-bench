@@ -12,6 +12,7 @@ dependencies = [
     "soundfile",
     "soxr",
     "numpy",
+    "requests",
 ]
 
 [dependency-groups]

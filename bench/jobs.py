@@ -43,4 +43,5 @@ KINDS = {
     "prepare_user": _data("prepare_user"),
     "match_and_split": _data("match_and_split"),
     "contamination": _contamination,
+    "parity": lambda payload: __import__("bench.parity", fromlist=["check"]).check(payload),
 }
