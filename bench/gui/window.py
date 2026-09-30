@@ -64,6 +64,7 @@ class Window(QMainWindow):
         self.log_view.setFont(QFont("Consolas", 10))
         self.tabs = QTabWidget()
         self.tabs.addTab(self.build_round_tab(), "Round")
+        self.tabs.addTab(self.build_results_tab(), "Results")
         self.tabs.addTab(self.log_view, "Log")
 
         layout = QVBoxLayout()
@@ -160,6 +161,63 @@ class Window(QMainWindow):
             n = rounds.new_round()
             os.startfile(rounds.folder(n) / "changelog.md")
             self.refresh_round()
+
+    # --- The Results tab --------------------------------------------------------------
+
+    RESULT_COLUMNS = [
+        ("direction", "direction"), ("asr", "ASR"), ("translator", "translator"), ("items", "items"),
+        ("cer", "CER %"), ("chrf", "chrF"), ("refused", "refused"), ("latency_median", "median s"),
+        ("latency_p90", "p90 s"), ("memory_gb", "memory GB"), ("fits", "fits laptop"), ("warnings", "warnings"),
+    ]
+
+    def build_results_tab(self) -> QWidget:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        top = QHBoxLayout()
+        self.results_note = QLabel("Point estimates. Intervals and comparisons come in B5.")
+        refresh = QPushButton("Refresh")
+        refresh.clicked.connect(self.refresh_results)
+        top.addWidget(self.results_note, 1)
+        top.addWidget(refresh)
+        layout.addLayout(top)
+        self.results_table = QTableWidget(0, len(self.RESULT_COLUMNS))
+        self.results_table.setHorizontalHeaderLabels([h for _, h in self.RESULT_COLUMNS])
+        self.results_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.results_table.horizontalHeader().setStretchLastSection(True)
+        self.results_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.results_table.setSortingEnabled(True)
+        self.results_table.verticalHeader().setVisible(False)
+        layout.addWidget(self.results_table)
+        return tab
+
+    def refresh_results(self):
+        from PySide6.QtGui import QBrush, QColor
+
+        from bench import results
+        from bench.results_view import rows_for_table
+
+        try:
+            rows = rows_for_table(results.compute())
+        except Exception as e:  # noqa: BLE001 - show why, rather than crash the window
+            self.results_note.setText(f"Results can't be shown yet: {e}")
+            return
+        table = self.results_table
+        table.setSortingEnabled(False)
+        table.setRowCount(len(rows))
+        for r, row in enumerate(rows):
+            for c, (key, _) in enumerate(self.RESULT_COLUMNS):
+                value = row[key]
+                item = QTableWidgetItem()
+                if isinstance(value, (int, float)) and not isinstance(value, bool):
+                    item.setData(Qt.DisplayRole, value)   # sorts as a number
+                else:
+                    item.setText(str(value))
+                if row["baseline"]:
+                    item.setBackground(QBrush(QColor(60, 80, 110)))
+                table.setItem(r, c, item)
+        table.setSortingEnabled(True)
+        self.results_note.setText(f"{len(rows)} configurations; baseline rows highlighted. Point estimates on "
+                                  "the selection split. Intervals and comparisons come in B5.")
 
     # --- Drawing ------------------------------------------------------------------
 

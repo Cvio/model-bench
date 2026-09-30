@@ -14,6 +14,8 @@
     bench build-server        build llama-server at volis's llama.cpp commit, as volis builds it
     bench parity              queue the parity check (the bench must reproduce volis exactly)
     bench parity-report       the parity check's result, with any differences
+    bench run                 queue an end-to-end run of the round's configurations
+    bench results             the numbers per configuration
 """
 
 import argparse
@@ -157,6 +159,10 @@ def cmd_build_server(a) -> int:
                         "https://github.com/ggml-org/llama.cpp", str(clone)], check=True)
     subprocess.run(["git", "-C", str(clone), "fetch", "--depth", "1", "origin", runners.LLAMA_CPP_COMMIT], check=True)
     subprocess.run(["git", "-C", str(clone), "checkout", "--force", runners.LLAMA_CPP_COMMIT], check=True)
+    # One small patch: keep a reply's raw text when it holds a broken UTF-8 byte, rather than
+    # fail the request. It changes nothing about what the model generates.
+    subprocess.run(["git", "-C", str(clone), "apply", str(ROOT / "patches" / "llama-server-raw-text.patch")],
+                   check=True)
     cmake = shutil.which("cmake")
     if not cmake:
         vswhere = r"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
@@ -173,6 +179,26 @@ def cmd_build_server(a) -> int:
     subprocess.run([cmake, "--build", str(build), "--config", "Release", "--target", "llama-server", "-j", "6"],
                    check=True)
     print(f"OK. llama-server is built: {runners.LLAMA_SERVER}")
+    return 0
+
+
+def cmd_run(a) -> int:
+    from bench import run
+
+    try:
+        r = run.queue(db.connect())
+    except RuntimeError as e:
+        print(f"STOP: {e}")
+        return 1
+    print(f"{r['configurations']} configurations; queued {r['jobs']} new job(s) (work already done is reused). "
+          "Start the queue to run them.")
+    return 0
+
+
+def cmd_results(a) -> int:
+    from bench import results
+
+    print(results.table(results.compute()))
     return 0
 
 
@@ -199,6 +225,8 @@ def main(argv=None) -> int:
     sub.add_parser("parity").set_defaults(func=cmd_parity)
     sub.add_parser("parity-report").set_defaults(func=cmd_parity_report)
     sub.add_parser("build-server").set_defaults(func=cmd_build_server)
+    sub.add_parser("run").set_defaults(func=cmd_run)
+    sub.add_parser("results").set_defaults(func=cmd_results)
     p = sub.add_parser("add-dummy")
     p.add_argument("n", type=int)
     p.add_argument("seconds", type=float)

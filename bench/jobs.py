@@ -44,4 +44,7 @@ KINDS = {
     "match_and_split": _data("match_and_split"),
     "contamination": _contamination,
     "parity": lambda payload: __import__("bench.parity", fromlist=["check"]).check(payload),
+    "transcribe": lambda payload: __import__("bench.run", fromlist=["x"]).transcribe_job(payload),
+    "translate": lambda payload: __import__("bench.run", fromlist=["x"]).translate_job(payload),
+    "plan": lambda payload: __import__("bench.run", fromlist=["x"]).plan_job(payload),
 }

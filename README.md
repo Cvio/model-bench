@@ -162,3 +162,35 @@ The same things from the command line:
 
 If the queue is already running (say from the command line), the window opens as a **viewer**: it
 shows everything and Pause works, but Start waits until that run ends.
+
+## Measure the baseline (how well volis does today)
+
+**What this does:** it runs volis's current models on the test data in every direction the bench
+cares about (Persian ↔ English, English → Iraqi Arabic, plus a few comparisons), and scores the
+results. Later rounds are compared against these numbers, so this is the starting line.
+
+```powershell
+.\bench.ps1 run
+.\bench.ps1 start --no-window
+.\bench.ps1 results
+```
+
+`run` puts the work in the queue (it refuses until the parity check has passed). `start` does the
+work; **expect** a few hours on a laptop, and it's fine to pause and carry on later. `results`
+prints the table. The window's **Results** tab shows the same table.
+
+**Reading the table** (each word, briefly):
+- **CER** (character error rate): of every 100 letters the speech recognizer wrote, how many were
+  wrong. **Lower is better.**
+- **chrF**: how closely the translation matches a human one, from 0 to 100. **Higher is better.**
+- **refused**: how often the translator gave no usable answer (volis's guards caught it).
+- **median s / p90 s**: seconds from the end of speech to the finished translation; half the
+  sentences are faster than the median, 9 in 10 faster than p90.
+- **memory / fits**: the most memory the models used, and whether that plus room for the voice and
+  Windows fits the laptop.
+- **comparison**: rows kept only to compare with (standard Arabic, not the dialect).
+- **PROVISIONAL**: the Iraqi Arabic speech test uses computer-made recordings, so treat it as a
+  rough guide only.
+
+These are single numbers from one test split. How sure we can be of them, and whether one setup
+really beats another, comes in the next step (B5).

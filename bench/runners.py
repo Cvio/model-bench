@@ -32,10 +32,50 @@ LLAMA_SERVER = ROOT / "cache" / "llama.cpp" / "build-volis" / "bin" / "Release" 
 CONTEXT_TOKENS = 1024
 MAX_OUTPUT_TOKENS = 256
 THREADS = 6
+# How llama-server runs. Part of the parity fingerprint: change any of these
+# and parity must be checked again. --reasoning-format none and --no-jinja keep
+# the server from interpreting the output (a <think> block made it refuse a
+# request); volis takes the model's raw text and cleans it itself.
+SERVER_ARGS = ["--ctx-size", str(CONTEXT_TOKENS), "--threads", str(THREADS), "--threads-batch", str(THREADS),
+               "--parallel", "1", "--no-warmup", "--reasoning-format", "none", "--no-jinja"]
 
 
 class RunnerError(Exception):
     pass
+
+
+class PeakMemory:
+    """Samples a process's resident memory in the background; .peak_mb is the
+    highest seen. Each model runs in a process of its own, so this is that
+    model's footprint."""
+
+    def __init__(self, pid: int, every: float = 0.2):
+        import threading
+
+        self.pid, self.every, self.peak = pid, every, 0
+        self.stop = threading.Event()
+        self.thread = threading.Thread(target=self.watch, daemon=True)
+        self.thread.start()
+
+    def watch(self):
+        import psutil
+
+        try:
+            process = psutil.Process(self.pid)
+            while not self.stop.is_set():
+                self.peak = max(self.peak, process.memory_info().rss)
+                self.stop.wait(self.every)
+        except psutil.Error:
+            pass
+
+    @property
+    def peak_mb(self) -> float:
+        return self.peak / 1e6
+
+    def finish(self) -> float:
+        self.stop.set()
+        self.thread.join(timeout=2)
+        return self.peak_mb
 
 
 def volis_exe() -> Path:
@@ -73,10 +113,11 @@ def converter_python() -> tuple:
     return python, worker
 
 
-def transcribe(source: str, language: str, wavs: list) -> list:
+def transcribe(source: str, language: str, wavs: list, measure: bool = False):
     """One transcript per WAV, from the converter's engine worker, the way
     volis's asr.rs runs the recognizer. Whitespace is collapsed to one line per
-    transcript, as `volis --transcribe` prints it."""
+    transcript, as `volis --transcribe` prints it. With measure, returns
+    (texts, seconds per clip, peak memory in MB) instead."""
     import tempfile
 
     files = asr_files(resolve(source))
@@ -92,15 +133,22 @@ def transcribe(source: str, language: str, wavs: list) -> list:
         # Whisper is told the language part only, as volis's asr.rs does.
         command += ["--language", language.split("-")[0]]
     try:
-        done = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                   encoding="utf-8", errors="replace")
+        memory = PeakMemory(process.pid)
+        stdout, stderr = process.communicate()
+        peak = memory.finish()
     finally:
         Path(listing).unlink(missing_ok=True)
-    lines = [l for l in done.stdout.splitlines() if l.startswith("{")]
+    lines = [l for l in stdout.splitlines() if l.startswith("{")]
     result = json.loads(lines[-1]) if lines else None
-    if done.returncode != 0 or not result or not result.get("ok"):
-        why = result["error"] if result else done.stderr.strip()[-800:]
+    if process.returncode != 0 or not result or not result.get("ok"):
+        why = result["error"] if result else stderr.strip()[-800:]
         raise RunnerError(f"the recognizer failed: {why}")
-    return [" ".join(t.split()) for t in result["texts"]]
+    texts = [" ".join(t.split()) for t in result["texts"]]
+    if measure:
+        return texts, result.get("seconds") or [None] * len(texts), peak
+    return texts
 
 
 def volis_transcribe(engine_folder: str, language: str, wavs: list) -> list:
@@ -149,9 +197,9 @@ class Translator:
         log = open(self.log_path, "w", encoding="utf-8", errors="replace")
         self.process = subprocess.Popen(
             [str(LLAMA_SERVER), "--model", str(self.gguf), "--host", "127.0.0.1", "--port", str(self.port),
-             "--ctx-size", str(CONTEXT_TOKENS), "--threads", str(THREADS), "--threads-batch", str(THREADS),
-             "--parallel", "1", "--no-warmup"],
+             *SERVER_ARGS],
             stdout=log, stderr=subprocess.STDOUT)
+        self.memory = PeakMemory(self.process.pid)
         deadline = time.time() + 300
         while time.time() < deadline:
             if self.process.poll() is not None:
@@ -185,7 +233,12 @@ class Translator:
         final, refusal = volis_rules.judge(text, raw, template)
         return {"text": final, "refusal": refusal, "raw": raw, "seconds": seconds}
 
+    def peak_mb(self) -> float:
+        return self.memory.peak_mb if getattr(self, "memory", None) else 0.0
+
     def close(self):
+        if getattr(self, "memory", None):
+            self.memory.finish()
         if self.process and self.process.poll() is None:
             self.process.terminate()
             try:

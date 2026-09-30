@@ -1,0 +1,20 @@
+diff --git a/tools/server/server-task.h b/tools/server/server-task.h
+index 6275ec760..171d9ebb1 100644
+--- a/tools/server/server-task.h
++++ b/tools/server/server-task.h
+@@ -384,7 +384,14 @@ struct server_task_result_cmpl_final : server_task_result {
+ 
+     virtual void update(task_result_state & state) override {
+         is_updated = true;
+-        oaicompat_msg = state.update_chat_msg(content, false, oaicompat_msg_diffs);
++        // model-bench: a reply with a broken UTF-8 byte fails the content parser; /completion
++        // only needs the raw text, so keep it rather than fail the request.
++        try {
++            oaicompat_msg = state.update_chat_msg(content, false, oaicompat_msg_diffs);
++        } catch (const std::exception &) {
++            oaicompat_msg.role = "assistant";
++            oaicompat_msg.content = content;
++        }
+ 
+         oai_resp_id = state.oai_resp_id;
+         oai_resp_reasoning_id = state.oai_resp_reasoning_id;

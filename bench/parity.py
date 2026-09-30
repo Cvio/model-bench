@@ -39,7 +39,8 @@ def file_stamp(path: Path) -> str:
 def runtime_key() -> str:
     """What a parity result proves: volis's program and models, and the engines."""
     root = config.volis_root()
-    parts = [file_stamp(root / "volis.exe"), file_stamp(runners.LLAMA_SERVER), runners.LLAMA_CPP_COMMIT]
+    parts = [file_stamp(root / "volis.exe"), file_stamp(runners.LLAMA_SERVER), runners.LLAMA_CPP_COMMIT,
+             " ".join(runners.SERVER_ARGS)]
     for folder in ("models/asr", "models/mt"):
         for p in sorted((root / folder).rglob("*")):
             if p.is_file() and p.suffix in (".onnx", ".gguf", ".toml", ".txt"):
