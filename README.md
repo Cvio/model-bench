@@ -214,3 +214,69 @@ sentences where the two differ, how often the new one did better.
 **If the range includes zero, the bench says "no established difference".** That means the
 gap could just be luck, so don't call it better, even "slightly". Only a range entirely above (or
 below) zero counts.
+
+## The judge, and your ratings
+
+Scores like chrF can't tell a harmless wording change from a translation that says the opposite
+of the source. Two things fill that gap.
+
+**The judge** is a larger AI model (the **assistant model**) that reads each translation beside
+its source and a professional reference, and names the worst problem, if there is one:
+
+- **Critical:** meaning reversed, wrong person (who did what to whom), invented content,
+  dangerous mistranslation (health, medication, numbers, names, places), answered the text
+  instead of translating it.
+- **Minor:** a filler word treated as a real word, stiff but correct, formal where the dialect
+  was asked for.
+
+```powershell
+.\bench.ps1 judge
+.\bench.ps1 start --no-window
+```
+
+**Expect** about 10 seconds per output on the laptop. It judges a fixed sample of 100 outputs per
+configuration (`judge: items_per_config` in `settings.yaml`), the same sentences for each
+configuration, so comparisons stay fair. That's roughly 2 hours for the baseline.
+
+**Your ratings** check the judge. A judge is only useful if it agrees with a person who knows the
+language, so:
+
+1. Open the window (`.\bench.ps1`), go to the **Review** tab, and press **Load packets**. A
+   **packet** is 30 outputs from one configuration in one direction (10 clips for speech
+   recognition).
+2. For each output, read the source (and the reference, for help) and press **1** acceptable,
+   **2** minor issue, or **3** critical error. For a critical error, pick what kind from the list
+   first. It moves on to the next unrated output by itself. Rate the packets in languages you
+   can read; skip the rest.
+3. **Results** then shows **you accepted** (the share you rated acceptable, with its range), and
+   under the table how often the judge agreed with you on critical errors.
+
+If you'd rather use a spreadsheet: `.\bench.ps1 review-packets` writes each packet as a CSV in
+the round's `review` folder. Fill the `rating` column (`acceptable`, `minor` or `critical`), then
+run `.\bench.ps1 review-import <file>`.
+
+**When the judge doesn't agree with you** on critical errors at least 80% of the time
+(`judge: min_critical_agreement`), its numbers are marked **unconfirmed** (a `?` on the command
+line), and only the automatic checks and your ratings count. If chrF ranks two configurations
+differently from your ratings, Results says so, and your ratings win.
+
+The **Failures** tab lists the outputs that failed, per configuration: pick a check (for example
+*numbers*) or *judged critical* to see them side by side with the source and reference.
+
+### Change the judge
+
+**What:** the judge is whatever model `machine.yaml` names. For now it's **Qwen3-8B**, the
+model already on this laptop (model-converter's teacher). It's small, so it's weak at Persian and
+Iraqi Arabic, and its labels may well come out *unconfirmed*.
+
+**How to use a stronger one** (for example on the desktop with the big graphics card):
+
+1. Download a larger instruction model as a `.gguf` file (a Qwen3 of 14B or more handles Persian
+   and Arabic better).
+2. In `machine.yaml`, set `assistant_gguf:` to that file's full path.
+3. Run `.\bench.ps1 judge` and **Start** again.
+
+**What to expect:** each judge keeps its own labels, so nothing is overwritten. Results use the
+judge named in `machine.yaml`. Your ratings stay, and the new judge's agreement with them is
+worked out automatically. It only runs on the processor for now (the same engine volis uses), so a
+bigger model is slower; `items_per_config` can be lowered to save time.

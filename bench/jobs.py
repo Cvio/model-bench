@@ -47,4 +47,5 @@ KINDS = {
     "transcribe": lambda payload: __import__("bench.run", fromlist=["x"]).transcribe_job(payload),
     "translate": lambda payload: __import__("bench.run", fromlist=["x"]).translate_job(payload),
     "plan": lambda payload: __import__("bench.run", fromlist=["x"]).plan_job(payload),
+    "judge": lambda payload: __import__("bench.judge", fromlist=["x"]).judge_job(payload),
 }

@@ -183,12 +183,13 @@ def free_port() -> int:
 class Translator:
     """llama-server with one GGUF, CPU only, set up as volis's translator."""
 
-    def __init__(self, gguf: Path, log_dir: Path):
+    def __init__(self, gguf: Path, log_dir: Path, server_args: list = None):
         if not LLAMA_SERVER.is_file():
             raise RunnerError(f"llama-server isn't built at {LLAMA_SERVER}; run: .\\bench.ps1 build-server")
         self.gguf, self.port = Path(gguf), free_port()
         self.log_path = Path(log_dir) / f"llama-server-{self.gguf.stem}.log"
         self.process = None
+        self.server_args = SERVER_ARGS if server_args is None else server_args
 
     def __enter__(self):
         import requests
@@ -197,7 +198,7 @@ class Translator:
         log = open(self.log_path, "w", encoding="utf-8", errors="replace")
         self.process = subprocess.Popen(
             [str(LLAMA_SERVER), "--model", str(self.gguf), "--host", "127.0.0.1", "--port", str(self.port),
-             *SERVER_ARGS],
+             *self.server_args],
             stdout=log, stderr=subprocess.STDOUT)
         self.memory = PeakMemory(self.process.pid)
         deadline = time.time() + 300
@@ -213,14 +214,14 @@ class Translator:
         self.close()
         raise RunnerError(f"llama-server didn't finish loading in 5 minutes; see {self.log_path}")
 
-    def raw(self, prompt: str) -> tuple:
+    def raw(self, prompt: str, n_predict: int = MAX_OUTPUT_TOKENS) -> tuple:
         """(raw output, seconds): greedy, up to 256 tokens or end of generation,
         with a fresh context (no cached prompt), as volis decodes."""
         import requests
 
         started = time.time()
         r = requests.post(f"http://127.0.0.1:{self.port}/completion", json={
-            "prompt": prompt, "n_predict": MAX_OUTPUT_TOKENS, "temperature": 0.0, "top_k": 1,
+            "prompt": prompt, "n_predict": n_predict, "temperature": 0.0, "top_k": 1,
             "cache_prompt": False, "samplers": ["top_k"], "stream": False,
         }, timeout=600)
         if r.status_code != 200:

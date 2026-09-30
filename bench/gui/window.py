@@ -11,8 +11,9 @@ import time
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import (QApplication, QHBoxLayout, QHeaderView, QLabel, QMainWindow,
-                               QMessageBox, QPlainTextEdit, QPushButton, QTableWidget,
+from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtWidgets import (QApplication, QComboBox, QFrame, QHBoxLayout, QHeaderView, QLabel,
+                               QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QTableWidget,
                                QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 
 from bench import db, round_view, rounds, session
@@ -65,6 +66,8 @@ class Window(QMainWindow):
         self.tabs = QTabWidget()
         self.tabs.addTab(self.build_round_tab(), "Round")
         self.tabs.addTab(self.build_results_tab(), "Results")
+        self.tabs.addTab(self.build_failures_tab(), "Failures")
+        self.tabs.addTab(self.build_review_tab(), "Review")
         self.tabs.addTab(self.log_view, "Log")
 
         layout = QVBoxLayout()
@@ -167,8 +170,8 @@ class Window(QMainWindow):
     RESULT_COLUMNS = [
         ("direction", "direction"), ("asr", "ASR"), ("translator", "translator"), ("items", "items"),
         ("cer", "CER %"), ("cer_range", "CER 95%"), ("chrf", "chrF"), ("chrf_range", "chrF 95%"),
-        ("refused", "refused"), ("failed", "failed"), ("dialect", "Iraqi"), ("latency_median", "median s"),
-        ("latency_p90", "p90 s"), ("memory_gb", "memory GB"), ("fits", "fits laptop"),
+        ("refused", "refused"), ("failed", "failed"), ("dialect", "Iraqi"), ("critical", "critical"),
+        ("accepted", "you accepted"), ("latency_median", "median s"), ("latency_p90", "p90 s"), ("memory_gb", "memory GB"), ("fits", "fits laptop"),
         ("vs_baseline", "vs baseline"), ("warnings", "warnings"),
     ]
 
@@ -199,7 +202,8 @@ class Window(QMainWindow):
         from bench.results_view import rows_for_table
 
         try:
-            rows = rows_for_table(results.compute())
+            rows_raw = results.compute()
+            rows = rows_for_table(rows_raw)
         except Exception as e:  # noqa: BLE001 - show why, rather than crash the window
             self.results_note.setText(f"Results can't be shown yet: {e}")
             return
@@ -218,8 +222,222 @@ class Window(QMainWindow):
                     item.setBackground(QBrush(QColor(60, 80, 110)))
                 table.setItem(r, c, item)
         table.setSortingEnabled(True)
+        agreement = rows_raw[0]["judge_agreement"].words() if rows_raw else ""
         self.results_note.setText(f"{len(rows)} configurations; baseline rows highlighted. Selection split, with "
-                                  "95% intervals; 'vs baseline' is paired on the same sentences.")
+                                  f"95% intervals; 'vs baseline' is paired on the same sentences.\nJudge: {agreement}")
+
+    # --- The Failures tab -------------------------------------------------------------
+
+    FAILURE_COLUMNS = [("item", "item"), ("checks", "automatic checks"), ("judge", "judge"),
+                       ("source", "source"), ("output", "output"), ("reference", "reference")]
+
+    def build_failures_tab(self) -> QWidget:
+        from bench.results_view import FAILURE_KINDS
+
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        top = QHBoxLayout()
+        self.failure_config = QComboBox()
+        self.failure_kind = QComboBox()
+        self.failure_kind.addItems(FAILURE_KINDS)
+        load = QPushButton("Load")
+        load.clicked.connect(self.load_failure_data)
+        self.failure_config.currentIndexChanged.connect(self.show_failures)
+        self.failure_kind.currentIndexChanged.connect(self.show_failures)
+        for w in (QLabel("Configuration:"), self.failure_config, QLabel("Show:"), self.failure_kind):
+            top.addWidget(w)
+        top.addStretch(1)
+        top.addWidget(load)
+        layout.addLayout(top)
+        self.failure_note = QLabel("Press Load to read the outputs.")
+        layout.addWidget(self.failure_note)
+        self.failure_table = self.make_table([h for _, h in self.FAILURE_COLUMNS])
+        self.failure_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        self.failure_table.setWordWrap(True)
+        layout.addWidget(self.failure_table, 1)
+        self.failure_data = []
+        return tab
+
+    def load_failure_data(self):
+        from bench import results
+
+        self.failure_data = results.compute(keep_items=True)
+        self.failure_config.blockSignals(True)
+        self.failure_config.clear()
+        for r in self.failure_data:
+            if r.get("mt_key"):
+                self.failure_config.addItem(f"{r['direction']}: {r['asr'] or '(text)'} + {r['translator']}", r["config"])
+        self.failure_config.blockSignals(False)
+        self.show_failures()
+
+    def show_failures(self):
+        from bench.results_view import failure_rows
+
+        config = self.failure_config.currentData()
+        if not config:
+            return
+        rows = failure_rows(self.failure_data, config, self.failure_kind.currentText())
+        table = self.failure_table
+        table.setRowCount(len(rows))
+        for r, row in enumerate(rows):
+            for c, (key, _) in enumerate(self.FAILURE_COLUMNS):
+                item = QTableWidgetItem(str(row[key]))
+                table.setItem(r, c, item)
+        for c, width in enumerate((110, 130, 100, 330, 330, 330)):
+            table.setColumnWidth(c, width)
+        table.resizeRowsToContents()
+        self.failure_note.setText(f"{len(rows)} output(s). Arabic and Persian text reads right to left.")
+
+    # --- The Review tab ---------------------------------------------------------------
+
+    def build_review_tab(self) -> QWidget:
+        from bench import judge
+
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        top = QHBoxLayout()
+        self.packet_box = QComboBox()
+        self.packet_box.currentIndexChanged.connect(self.pick_packet)
+        load = QPushButton("Load packets")
+        load.clicked.connect(self.load_packets)
+        top.addWidget(QLabel("Packet:"))
+        top.addWidget(self.packet_box, 1)
+        top.addWidget(load)
+        layout.addLayout(top)
+        self.review_help = QLabel("Rate each output: is it an acceptable translation of the source? The reference is "
+                                  "a professional translation, for help. Keys: 1 acceptable, 2 minor issue, "
+                                  "3 critical error, arrows to move.")
+        self.review_help.setWordWrap(True)
+        layout.addWidget(self.review_help)
+        self.review_fields = {}
+        big = QFont()
+        big.setPointSize(13)
+        for name in ("source", "reference", "output"):
+            layout.addWidget(QLabel(f"<b>{name.capitalize()}</b>"))
+            label = QLabel()
+            label.setWordWrap(True)
+            label.setFont(big)
+            label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            label.setFrameShape(QFrame.StyledPanel)
+            label.setMinimumHeight(56)
+            layout.addWidget(label)
+            self.review_fields[name] = label
+        self.play_button = QPushButton("Play the clip")
+        self.play_button.clicked.connect(self.play_clip)
+        layout.addWidget(self.play_button)
+        rate = QHBoxLayout()
+        for text, value in (("1  Acceptable", "acceptable"), ("2  Minor issue", "minor"),
+                            ("3  Critical error", "critical")):
+            b = QPushButton(text)
+            b.clicked.connect(lambda _=False, v=value: self.rate(v))
+            rate.addWidget(b)
+        self.category_box = QComboBox()
+        self.category_box.addItem("(critical error: what kind?)", "")
+        for key, severity, words in judge.CATEGORIES:
+            if severity == "critical":
+                self.category_box.addItem(words, key)
+        rate.addWidget(self.category_box, 1)
+        layout.addLayout(rate)
+        nav = QHBoxLayout()
+        prev_b, next_b, clear_b = QPushButton("< Previous"), QPushButton("Next >"), QPushButton("Clear rating")
+        prev_b.clicked.connect(lambda: self.move_item(-1))
+        next_b.clicked.connect(lambda: self.move_item(1))
+        clear_b.clicked.connect(self.clear_rating)
+        self.review_progress = QLabel()
+        nav.addWidget(prev_b)
+        nav.addWidget(next_b)
+        nav.addWidget(clear_b)
+        nav.addStretch(1)
+        nav.addWidget(self.review_progress)
+        layout.addLayout(nav)
+        layout.addStretch(1)
+        for key, action in (("1", lambda: self.rate("acceptable")), ("2", lambda: self.rate("minor")),
+                            ("3", lambda: self.rate("critical")), ("Left", lambda: self.move_item(-1)),
+                            ("Right", lambda: self.move_item(1))):
+            shortcut = QShortcut(QKeySequence(key), tab)
+            shortcut.setContext(Qt.WidgetWithChildrenShortcut)
+            shortcut.activated.connect(action)
+        self.packets, self.packet, self.item_index = [], None, 0
+        self.show_item()
+        return tab
+
+    def load_packets(self):
+        from bench import results, review
+
+        self.packets = review.packets(self.conn, results.compute(self.conn, keep_items=True))
+        self.packet_box.blockSignals(True)
+        self.packet_box.clear()
+        for p in self.packets:
+            self.packet_box.addItem(f"{p.name}  ({p.rated()} of {len(p.items)} rated)")
+        self.packet_box.blockSignals(False)
+        self.pick_packet(0)
+
+    def pick_packet(self, index: int):
+        from bench import review
+
+        self.packet = self.packets[index] if 0 <= index < len(self.packets) else None
+        self.item_index = review.next_unrated(self.packet) if self.packet and self.packet.items else 0
+        self.show_item()
+
+    def current_item(self):
+        if not self.packet or not self.packet.items:
+            return None
+        return self.packet.items[self.item_index]
+
+    def show_item(self):
+        from bench import review
+
+        it = self.current_item()
+        for name, label in self.review_fields.items():
+            text = getattr(it, name) if it else ""
+            if it and self.packet.kind == "asr" and name == "source":
+                text = "(listen to the clip)"
+            label.setText(text)
+            rtl = review.right_to_left(text)
+            label.setLayoutDirection(Qt.RightToLeft if rtl else Qt.LeftToRight)
+            label.setAlignment((Qt.AlignRight if rtl else Qt.AlignLeft) | Qt.AlignVCenter)
+        self.play_button.setVisible(bool(it and it.audio))
+        if not it:
+            self.review_progress.setText("Press Load packets.")
+            return
+        rating = it.rating + (f" ({it.category})" if it.category else "") if it.rating else "not rated"
+        self.review_progress.setText(f"Item {self.item_index + 1} of {len(self.packet.items)}: {rating}. "
+                                     f"{self.packet.rated()} of {len(self.packet.items)} rated.")
+        i = self.category_box.findData(it.category)
+        self.category_box.setCurrentIndex(max(i, 0))
+
+    def rate(self, value: str):
+        from bench import review
+
+        it = self.current_item()
+        if not it:
+            return
+        category = self.category_box.currentData() if value == "critical" else ""
+        review.save_rating(self.conn, it.key, it.item, value, category, rater="window")
+        it.rating, it.category = value, category
+        self.packet_box.setItemText(self.packet_box.currentIndex(),
+                                    f"{self.packet.name}  ({self.packet.rated()} of {len(self.packet.items)} rated)")
+        self.item_index = review.next_unrated(self.packet, self.item_index)
+        self.show_item()
+
+    def clear_rating(self):
+        from bench import review
+
+        it = self.current_item()
+        if it:
+            review.clear_rating(self.conn, it.key, it.item)
+            it.rating, it.category = "", ""
+            self.show_item()
+
+    def move_item(self, step: int):
+        if self.packet and self.packet.items:
+            self.item_index = (self.item_index + step) % len(self.packet.items)
+            self.show_item()
+
+    def play_clip(self):
+        it = self.current_item()
+        if it and it.audio:
+            os.startfile(it.audio)
 
     # --- Drawing ------------------------------------------------------------------
 

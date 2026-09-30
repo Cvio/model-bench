@@ -18,4 +18,4 @@ laptop_speed_factor: 1.0
 # "local" (a GGUF on this machine) or "claude" (through the API; test sentences
 # then leave this machine, and the report says so).
 assistant: local
-assistant_gguf: ""
+assistant_gguf: ""                # the judge model's .gguf; see README, "Change the judge"

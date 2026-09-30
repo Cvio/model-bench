@@ -202,6 +202,39 @@ def cmd_results(a) -> int:
     return 0
 
 
+def cmd_judge(a) -> int:
+    from bench import judge
+
+    try:
+        r = judge.queue(db.connect())
+    except RuntimeError as e:
+        print(f"STOP: {e}")
+        return 1
+    print(f"Judge {r['judge']}: {r['items']} output(s) to judge, in {r['jobs']} new job(s). Start the queue to run them.")
+    return 0
+
+
+def cmd_review_packets(a) -> int:
+    from bench import results, review, rounds
+
+    conn = db.connect()
+    folder = rounds.folder(rounds.current() or 0) / "review"
+    ps = review.packets(conn, results.compute(conn, keep_items=True))
+    for p in ps:
+        name = "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in p.name)
+        review.write_csv(p, folder / f"{name}.csv")
+    print(f"Wrote {len(ps)} packet(s) to {folder}. Rate them in the window's Review tab, or fill the "
+          "'rating' column (acceptable, minor, critical) and run: .\bench.ps1 review-import <file>")
+    return 0
+
+
+def cmd_review_import(a) -> int:
+    from bench import review
+
+    print(f"Stored {review.read_csv(db.connect(), a.file)} rating(s).")
+    return 0
+
+
 def open_window() -> int:
     from bench.gui.window import main as window_main
 
@@ -227,6 +260,11 @@ def main(argv=None) -> int:
     sub.add_parser("build-server").set_defaults(func=cmd_build_server)
     sub.add_parser("run").set_defaults(func=cmd_run)
     sub.add_parser("results").set_defaults(func=cmd_results)
+    sub.add_parser("judge").set_defaults(func=cmd_judge)
+    sub.add_parser("review-packets").set_defaults(func=cmd_review_packets)
+    p = sub.add_parser("review-import")
+    p.add_argument("file")
+    p.set_defaults(func=cmd_review_import)
     p = sub.add_parser("add-dummy")
     p.add_argument("n", type=int)
     p.add_argument("seconds", type=float)
