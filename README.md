@@ -192,5 +192,25 @@ prints the table. The window's **Results** tab shows the same table.
 - **PROVISIONAL**: the Iraqi Arabic speech test uses computer-made recordings, so treat it as a
   rough guide only.
 
-These are single numbers from one test split. How sure we can be of them, and whether one setup
-really beats another, comes in the next step (B5).
+### How sure are these numbers?
+
+Each score comes with a **95% range** (for example chrF `44.7 [42.9–46.4]`). **What it means:** the
+test uses a few hundred sentences, and a different few hundred would give a slightly different
+number. The bench works out how much by **re-drawing** the sentences 10,000 times (some picked
+twice, some left out) and scoring each draw. The true score almost certainly sits inside the range.
+
+More columns:
+- **failed**: outputs that fail a simple automatic check: refused, empty, in the wrong alphabet,
+  far too long, or a number from the source lost or changed (7th becoming 10th). Lower is better.
+- **Iraqi**: for output into Iraqi Arabic, the share that *sounds* Iraqi: more Iraqi-only words
+  (هسه, شنو, كلش…) than formal ones (الآن, ماذا, جدا…), from `dialect-words.yaml`. Add words
+  there freely; more words make it steadier.
+
+**Comparing with today's setup.** Every new configuration is compared with the baseline **on the
+same sentences** ("vs baseline" in the window, and the list under the table from
+`.ench.ps1 results`). You get the difference with its range, and the **win rate**: of the
+sentences where the two differ, how often the new one did better.
+
+**If the range includes zero, the bench says "no established difference".** That means the
+gap could just be luck, so don't call it better, even "slightly". Only a range entirely above (or
+below) zero counts.

@@ -166,15 +166,17 @@ class Window(QMainWindow):
 
     RESULT_COLUMNS = [
         ("direction", "direction"), ("asr", "ASR"), ("translator", "translator"), ("items", "items"),
-        ("cer", "CER %"), ("chrf", "chrF"), ("refused", "refused"), ("latency_median", "median s"),
-        ("latency_p90", "p90 s"), ("memory_gb", "memory GB"), ("fits", "fits laptop"), ("warnings", "warnings"),
+        ("cer", "CER %"), ("cer_range", "CER 95%"), ("chrf", "chrF"), ("chrf_range", "chrF 95%"),
+        ("refused", "refused"), ("failed", "failed"), ("dialect", "Iraqi"), ("latency_median", "median s"),
+        ("latency_p90", "p90 s"), ("memory_gb", "memory GB"), ("fits", "fits laptop"),
+        ("vs_baseline", "vs baseline"), ("warnings", "warnings"),
     ]
 
     def build_results_tab(self) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
         top = QHBoxLayout()
-        self.results_note = QLabel("Point estimates. Intervals and comparisons come in B5.")
+        self.results_note = QLabel()
         refresh = QPushButton("Refresh")
         refresh.clicked.connect(self.refresh_results)
         top.addWidget(self.results_note, 1)
@@ -216,8 +218,8 @@ class Window(QMainWindow):
                     item.setBackground(QBrush(QColor(60, 80, 110)))
                 table.setItem(r, c, item)
         table.setSortingEnabled(True)
-        self.results_note.setText(f"{len(rows)} configurations; baseline rows highlighted. Point estimates on "
-                                  "the selection split. Intervals and comparisons come in B5.")
+        self.results_note.setText(f"{len(rows)} configurations; baseline rows highlighted. Selection split, with "
+                                  "95% intervals; 'vs baseline' is paired on the same sentences.")
 
     # --- Drawing ------------------------------------------------------------------
 
