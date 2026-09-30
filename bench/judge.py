@@ -33,6 +33,7 @@ CATEGORIES = [
 SEVERITY = {k: s for k, s, _ in CATEGORIES}
 CRITICAL = [k for k, s, _ in CATEGORIES if s == "critical"]
 LANGUAGE_NAMES = {"en": "English", "fa": "Persian", "ar": "Modern Standard Arabic", "ar-IQ": "Iraqi Arabic"}
+PROMPT_VERSION = 2          # bump when prompt() changes: labels are kept per judge and prompt version
 JUDGE_CONTEXT = 2048
 BATCH = 25
 
@@ -52,7 +53,7 @@ def judge_model() -> tuple:
     path = Path(m.get("assistant_gguf") or "")
     if not path.is_file():
         raise RuntimeError(f"machine.yaml's assistant_gguf isn't a file: '{path}'. See README, 'Change the judge'.")
-    return path.stem, path
+    return f"{path.stem}-p{PROMPT_VERSION}", path
 
 
 def prompt(source: str, reference: str, output: str, source_lang: str, target_lang: str) -> str:
@@ -64,7 +65,9 @@ def prompt(source: str, reference: str, output: str, source_lang: str, target_la
             f"Source: {source}\nReference translation (by a professional): {reference}\n"
             f"Translation to check: {output}\n\n"
             f"Pick the single worst problem with the translation to check, from this list:\n{names}\n\n"
-            "Critical problems come before minor ones. Answer with the key only, one word.")
+            "Compare meaning, not wording: if the translation says the same thing as the reference, even "
+            "in different words, answer ok. Only name a problem you can point to. Critical problems come "
+            "before minor ones. Answer with the key only, one word.")
     # Qwen3 chat format, with an empty thinking block so it answers directly.
     return f"<|im_start|>user\n{user}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
 
