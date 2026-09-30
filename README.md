@@ -256,7 +256,8 @@ the round's `review` folder. Fill the `rating` column (`acceptable`, `minor` or 
 run `.\bench.ps1 review-import <file>`.
 
 **When the judge doesn't agree with you** on critical errors at least 80% of the time
-(`judge: min_critical_agreement`), its numbers are marked **unconfirmed** (a `?` on the command
+(`judge: min_critical_agreement`), or you've rated fewer than 30 of the outputs it judged
+(`judge: min_rated_items`), its numbers are marked **unconfirmed** (a `?` on the command
 line), and only the automatic checks and your ratings count. If chrF ranks two configurations
 differently from your ratings, Results says so, and your ratings win.
 

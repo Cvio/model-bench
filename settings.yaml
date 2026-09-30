@@ -27,6 +27,7 @@ statistics:
 
 judge:
   min_critical_agreement: 0.80   # below this, judged categories are "unconfirmed"
+  min_rated_items: 30            # the judge can't be confirmed on fewer of your ratings than this
   items_per_config: 100          # outputs judged per configuration (the same ones for each); ~10 s each on the laptop's CPU
 
 review:

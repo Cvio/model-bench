@@ -166,7 +166,9 @@ class Agreement:
         if not self.items:
             return "no rated items have a judge label yet"
         k = "—" if self.critical_kappa is None else f"{self.critical_kappa:.2f}"
-        state = "confirmed" if self.confirmed else "UNCONFIRMED"
+        need = int(setting("judge", "min_rated_items", 30))
+        state = ("confirmed" if self.confirmed else
+                 f"UNCONFIRMED (needs {need} rated items)" if self.items < need else "UNCONFIRMED")
         return (f"judge agrees with you on critical errors {self.critical_agreement:.0%} of {self.items} items "
                 f"(kappa {k}): {state}")
 
@@ -184,9 +186,10 @@ def agreement(pairs: list) -> Agreement:
     judge_crit = [judge.SEVERITY[j] == "critical" for _, j in pairs]
     share = sum(x == y for x, y in zip(human_crit, judge_crit)) / len(pairs)
     need = float(setting("judge", "min_critical_agreement", 0.80))
+    enough = len(pairs) >= int(setting("judge", "min_rated_items", 30))
     return Agreement(len(pairs), share, kappa(human_crit, judge_crit),
                      kappa([severity_of_rating(h) for h, _ in pairs], [judge.SEVERITY[j] for _, j in pairs]),
-                     share >= need)
+                     share >= need and enough)
 
 
 def acceptance(ratings_list: list, redraws: int = 10000, confidence: float = 0.95):

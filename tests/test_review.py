@@ -32,7 +32,10 @@ def test_kappa_and_agreement():
     assert round(review.kappa([1, 0, 1, 0], [1, 1, 0, 0]), 2) == 0.0
     a = review.agreement([("critical", "invented"), ("acceptable", "ok"), ("minor", "stiff"),
                           ("acceptable", "ok"), ("critical", "ok")])
-    assert a.items == 5 and a.critical_agreement == 0.8 and a.confirmed
+    assert a.items == 5 and a.critical_agreement == 0.8 and not a.confirmed     # too few ratings
+    assert "needs 30" in a.words()
+    many = review.agreement([("critical", "invented"), ("acceptable", "ok")] * 15)
+    assert many.confirmed
     b = review.agreement([("critical", "ok"), ("acceptable", "invented"), ("acceptable", "ok")])
     assert not b.confirmed and "UNCONFIRMED" in b.words()
     assert review.agreement([("critical", "unparsed")]).items == 0
